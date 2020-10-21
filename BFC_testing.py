@@ -14,101 +14,65 @@ import matplotlib.pyplot as plt
 from tensorflow.keras.models import load_model
 import sys
 random.seed(2019)
-# sys.path.append("C:/Users/attil/Documents/DRS/drs/")
-# from MLTK.data import BiasGenerator
+sys.path.append("C:/Users/attil/Documents/DRS/drs/")
+from MLTK.data import BiasGenerator
 
-
-"""
-Created: 2019. 03. 28.
-Testing script for CompNet paper figure describing the network using
-the training data. Show each stage with figures.
-
-Stage 1:
-
-Stage 2:
-
-Stage 3:
-
-"""
-
-# model = load_model('Experiments/CompNets/000/12.h5')
-model = tensorflow.keras.models.load_model('C:/Users/attil/Downloads/out/10.h5', compile=False)
-dataset = '1TA40.npz'
+model = tensorflow.keras.models.load_model('IN.h5', compile=False)
+dataset = 'data.npz'
 
 with np.load(dataset) as npzfile:
-    im = npzfile['image'][50, :, :]
-    data = npzfile['data'][50, :, :]
-    tissue = npzfile['tissue'][50, :, :]
+    v = npzfile['v']
+    g = npzfile['g']
+    g_hat = npzfile['g_hat']
+    u = v / g
+    
+    vg_hat = v * g_hat
+    vg_hat = vg_hat / np.max(vg_hat)
 
-BFG = BiasGenerator(size=(256, 256), batch_size=1)
+    plt.figure(1, figsize=(20, 5))
+    plt.subplot(1, 5, 1)
+    plt.imshow(u, cmap='gray')
+    plt.title('u')
+    plt.axis('off')
+    plt.subplot(2, 5, 2)
+    plt.imshow(v, cmap='gray')
+    plt.title('v = u * g')
+    plt.axis('off')
+    plt.subplot(2, 5, 7)
+    plt.imshow(g, cmap='gray')
+    plt.title('g')
+    plt.axis('off')
 
-bias = BFG.GetFields()
-bias = bias[:, :, 0]
-np.savez('data', image = im, data = data, bias = bias)
-img2 = im
-
-img1 = im * bias
-img1 = img1 / np.max(img1)
-
-plt.figure(1, figsize=(20, 5))
-plt.subplot(2, 5, 1)
-plt.imshow(img2, cmap='gray')
-plt.axis('off')
-plt.subplot(2, 5, 6)
-plt.imshow(bias, cmap='gray')
-plt.axis('off')
-
-plt.subplot(2, 5, 2)
-plt.imshow(img1, cmap='gray')
-plt.axis('off')
+    plt.subplot(2, 5, 3)
+    plt.imshow(vg_hat, cmap='gray')
+    plt.title('v * g_hat')
+    plt.axis('off')
+    plt.subplot(2, 5, 8)
+    plt.imshow(g_hat, cmap='gray')
+    plt.title('g_hat')
+    plt.axis('off')
 
 
-img1 = np.expand_dims(np.expand_dims(img1, axis=0), axis=4)
-img2 = np.expand_dims(np.expand_dims(img2, axis=0), axis=4)
+    vg_hat = np.expand_dims(np.expand_dims(vg_hat, axis=0), axis=4)
+    v = np.expand_dims(np.expand_dims(v, axis=0), axis=4)
 
-bias1 = model.predict(img1)
-bias2 = model.predict(img2)
-bias1 = bias1[0, :, :, 0]
-bias2 = bias2[0, :, :, 0]
-bias_pred = np.divide(bias1, bias2)
-bias_pred = bias_pred / np.mean(bias_pred)
+    F_vg_hat = model.predict(vg_hat)
+    F_v = model.predict(v)
+    F_vg_hat = F_vg_hat[0, :, :, 0]
+    F_v = F_v[0, :, :, 0]
+    g_hat_pred = np.divide(F_vg_hat, F_v)
 
-img1 = np.divide(img1[0, :, :, 0], bias1)
-img2 = np.divide(img2[0, :, :, 0], bias2)
-img1 = img1 / np.max(img1)
-img2 = img2 / np.max(img2)
+    plt.subplot(2, 5, 4)
+    plt.imshow(F_vg_hat, cmap='gray')
+    plt.title('F(v * g_hat)')
+    plt.axis('off')
+    plt.subplot(2, 5, 9)
+    plt.imshow(F_v, cmap='gray')
+    plt.title('F(v)')
+    plt.axis('off')
 
-img1 = np.expand_dims(np.expand_dims(img1, axis=0), axis=4)
-img2 = np.expand_dims(np.expand_dims(img2, axis=0), axis=4)
-
-reg1 = model.predict(img1)
-reg2 = model.predict(img2)
-reg1 = reg1[0, :, :, 0]
-reg2 = reg2[0, :, :, 0]
-
-vmin1, vmax1 = np.min(bias1), np.max(bias1)
-vmin2, vmax2 = np.min(bias2), np.max(bias2)
-vmin3, vmax3 = np.min(bias_pred), np.max(bias_pred)
-vmin4, vmax4 = np.min(reg1), np.max(reg1)
-vmin5, vmax5 = np.min(reg2), np.max(reg2)
-vmin = np.min([vmin1, vmin2, vmin3, vmin4, vmin5])
-vmax = np.max([vmax1, vmax2, vmax3, vmax4, vmax5])
-
-plt.subplot(2, 5, 3)
-plt.imshow(bias1, cmap='gray', vmin=vmin, vmax=vmax)
-plt.axis('off')
-plt.subplot(2, 5, 8)
-plt.imshow(bias2, cmap='gray', vmin=vmin, vmax=vmax)
-plt.axis('off')
-
-plt.subplot(2, 5, 4)
-plt.imshow(reg1, cmap='gray', vmin=vmin, vmax=vmax)
-plt.axis('off')
-plt.subplot(2, 5, 9)
-plt.imshow(reg2, cmap='gray', vmin=vmin, vmax=vmax)
-plt.axis('off')
-
-plt.subplot(1, 5, 5)
-plt.imshow(bias_pred, cmap='gray', vmin=vmin, vmax=vmax)
-plt.axis('off')
-plt.show()
+    plt.subplot(1, 5, 5)
+    plt.imshow(g_hat_pred, cmap='gray')
+    plt.title('F(v * g_hat) / F(v)')
+    plt.axis('off')
+    plt.show()

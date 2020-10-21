@@ -25,7 +25,7 @@ GPU = int(args.gpu)
 
 def output_range(x):
     from tensorflow.keras import backend as K
-    rng = 0.9
+    rng = 1
     x = tensorflow.where(K.greater(x, -rng), x, -rng*K.ones_like(x))
     x = tensorflow.where(K.less(x, rng), x, rng*K.ones_like(x))
     return x
@@ -47,8 +47,8 @@ def implicit_relation(tensor):
     a = tensor[0]
     b = tensor[1]
     c = tensorflow.math.subtract(a, b)
-    # scale = K.mean(c, axis=(1, 2, 3))
-    # c = tensorflow.math.subtract(c, scale[:, None, None, None])
+    #scale = K.mean(c, axis=(1, 2, 3))
+    #c = tensorflow.math.subtract(c, scale[:, None, None, None])
     return c
     
 def implicit_correction(tensor):
@@ -64,31 +64,31 @@ def implicit_correction(tensor):
 
 def build_model():
     from tensorflow.keras.models import Model
-    from tensorflow.keras import regularizers
+    from tensorflow.keras.regularizers import l2
     from tensorflow.keras.layers import Input, MaxPooling2D, Conv2D, Conv2DTranspose, BatchNormalization, Dropout, UpSampling2D, Concatenate, Dropout, add
     dropout_rate = 0.2
     l2reg = 0.0001
     filt = 2
-    kernel_size = 15
+    kernel_size = 10
     
-    inp = Input(shape=(256, 256, 1))
+    inp = Input(shape=(64, 64, 1))
     x = Conv2D(filt, kernel_size, padding = 'same')(inp)
     x = Conv2D(filt*2, kernel_size, padding = 'same')(x)
-    x = Dropout(dropout_rate)(x)
+    #x = Dropout(dropout_rate)(x)
     x = Conv2D(filt*4, kernel_size, padding = 'same')(x)
-    x = Dropout(dropout_rate)(x)
+    #x = Dropout(dropout_rate)(x)
     x = Conv2D(filt*8, kernel_size, padding = 'same')(x)
-    x = Dropout(dropout_rate)(x)
+    #x = Dropout(dropout_rate)(x)
     x = Conv2D(filt*16, kernel_size, padding = 'same')(x)
-    x = Conv2D(1, kernel_size, padding = 'same')(x)
+    x = Conv2D(1, kernel_size, padding = 'same')(x) # , kernel_regularizer=l2(l2reg)
 
-    # x = Lambda(output_range)(x)
+    x = Lambda(output_range)(x)
 
     return Model(inputs=[inp], outputs=[x])
 
 def build_implicit():
-    im1 = Input(shape=(256, 256, 1))
-    im2 = Input(shape=(256, 256, 1))
+    im1 = Input(shape=(64, 64, 1))
+    im2 = Input(shape=(64, 64, 1))
     im1out1 = model(im1)
     im2out1 = model(im2)
 
@@ -108,28 +108,27 @@ if GPU >= 0:
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = str(GPU)
 
-noise_size = 0.01
-orig=cv2.resize(mpimg.imread('orig.png')[:, :, 0], dsize=(256, 256), interpolation=cv2.INTER_LANCZOS4)
+noise_size = 0.02
+orig=cv2.resize(mpimg.imread('orig.png')[:, :, 0], dsize=(64, 64), interpolation=cv2.INTER_LANCZOS4)
 orig = np.array(np.interp(orig, (orig.min(), orig.max()), (0, 1)), dtype=np.float32)
 orig_noise = np.random.normal(0, noise_size, size=np.shape(orig))
 noisy = orig + orig_noise
 noisy = np.array(np.interp(noisy, (noisy.min(), noisy.max()), (0, 1)), dtype=np.float32)
-# np.savez('/home/attila/out' + str(GPU) + '/_data', orig = orig, noisy = noisy)
 
 n_epochs = 10000
-n_its = 500
+n_its = 100
 batch_size = 1
-lr = 0.001
+lr = 0.00001
 noisy_dataset = np.repeat(np.expand_dims(np.expand_dims(noisy, axis=2), axis=0), batch_size, axis=0)
 zeros = np.zeros_like(noisy_dataset)
 
 
 # Correct images.
 model = build_model()
-model.compile(loss=['mean_squared_error'], optimizer=tensorflow.keras.optimizers.Nadam(lr))
+model.compile(loss=['mean_squared_error'], optimizer=tensorflow.keras.optimizers.Adam(lr))
 
 implicit = build_implicit()
-implicit.compile(optimizer=tensorflow.keras.optimizers.Nadam(lr), 
+implicit.compile(optimizer=tensorflow.keras.optimizers.Adam(lr), 
               loss=['mean_squared_error', 'mean_squared_error', 'mean_squared_error'],
               loss_weights=[1, 0.5, 0.5])
 
