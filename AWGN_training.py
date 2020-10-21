@@ -35,20 +35,11 @@ def psnr(y_true, y_pred):
     PIXEL_MAX = 255.0
     return 20 * np.log10(PIXEL_MAX / np.sqrt(mse))
 
-def subtract_layer(tensor):
-    from tensorflow.keras import backend as K
-    a = tensor[0]
-    b = tensor[1]
-    c = tensorflow.math.subtract(a, b)
-    return c
-
 def implicit_relation(tensor):
     from tensorflow.keras import backend as K
     a = tensor[0]
     b = tensor[1]
     c = tensorflow.math.subtract(a, b)
-    #scale = K.mean(c, axis=(1, 2, 3))
-    #c = tensorflow.math.subtract(c, scale[:, None, None, None])
     return c
     
 def implicit_correction(tensor):
@@ -67,22 +58,21 @@ def build_model():
     from tensorflow.keras.regularizers import l2
     from tensorflow.keras.layers import Input, MaxPooling2D, Conv2D, Conv2DTranspose, BatchNormalization, Dropout, UpSampling2D, Concatenate, Dropout, add
     dropout_rate = 0.2
-    l2reg = 0.0001
     filt = 2
     kernel_size = 10
     
     inp = Input(shape=(64, 64, 1))
     x = Conv2D(filt, kernel_size, padding = 'same')(inp)
     x = Conv2D(filt*2, kernel_size, padding = 'same')(x)
-    #x = Dropout(dropout_rate)(x)
+    x = Dropout(dropout_rate)(x)
     x = Conv2D(filt*4, kernel_size, padding = 'same')(x)
-    #x = Dropout(dropout_rate)(x)
+    x = Dropout(dropout_rate)(x)
     x = Conv2D(filt*8, kernel_size, padding = 'same')(x)
-    #x = Dropout(dropout_rate)(x)
+    x = Dropout(dropout_rate)(x)
     x = Conv2D(filt*16, kernel_size, padding = 'same')(x)
-    x = Conv2D(1, kernel_size, padding = 'same')(x) # , kernel_regularizer=l2(l2reg)
+    x = Conv2D(1, kernel_size, padding = 'same')(x)
 
-    x = Lambda(output_range)(x)
+    #x = Lambda(output_range)(x)
 
     return Model(inputs=[inp], outputs=[x])
 
@@ -108,73 +98,60 @@ if GPU >= 0:
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = str(GPU)
 
+u=cv2.resize(mpimg.imread('orig.png')[:, :, 0], dsize=(64, 64), interpolation=cv2.INTER_LANCZOS4)
+u = np.array(np.interp(u, (u.min(), u.max()), (0, 1)), dtype=np.float32)
 noise_size = 0.02
-orig=cv2.resize(mpimg.imread('orig.png')[:, :, 0], dsize=(64, 64), interpolation=cv2.INTER_LANCZOS4)
-orig = np.array(np.interp(orig, (orig.min(), orig.max()), (0, 1)), dtype=np.float32)
-orig_noise = np.random.normal(0, noise_size, size=np.shape(orig))
-noisy = orig + orig_noise
-noisy = np.array(np.interp(noisy, (noisy.min(), noisy.max()), (0, 1)), dtype=np.float32)
+b = np.random.normal(0, noise_size, size=np.shape(u))
+v = u + b
+v = np.array(np.interp(v, (v.min(), v.max()), (0, 1)), dtype=np.float32)
 
-n_epochs = 10000
-n_its = 100
-batch_size = 1
-lr = 0.00001
-noisy_dataset = np.repeat(np.expand_dims(np.expand_dims(noisy, axis=2), axis=0), batch_size, axis=0)
-zeros = np.zeros_like(noisy_dataset)
+n_epochs = 10
+n_its = 500
+lr = 0.0001
+v_batch = np.expand_dims(np.expand_dims(v, axis=2), axis=0)
+zeros_batch = np.zeros_like(v_batch)
 
 
 # Correct images.
 model = build_model()
-model.compile(loss=['mean_squared_error'], optimizer=tensorflow.keras.optimizers.Adam(lr))
+model.compile(loss=['mean_squared_error'])
 
 implicit = build_implicit()
 implicit.compile(optimizer=tensorflow.keras.optimizers.Adam(lr), 
               loss=['mean_squared_error', 'mean_squared_error', 'mean_squared_error'],
               loss_weights=[1, 0.5, 0.5])
 
-file_id = 0
-
 for epoch in range(n_epochs):
     loss = []
-    print(np.mean(orig_noise**2))
-    print(str(psnr(noisy, orig)))
-    for idx in range(int(n_its / batch_size)):
-        noise = np.random.normal(0, noise_size, size=np.shape(noisy_dataset))
-        full_data = noisy_dataset + noise
-        full_data = np.array(np.interp(full_data, (full_data.min(), full_data.max()), (0, 1)), dtype=np.float32)
-        hist = implicit.fit([full_data, noisy_dataset], [noise, zeros, zeros], verbose=0)
+    for idx in range(int(n_its)):
+        b_hat = np.random.normal(0, noise_size, size=np.shape(v_batch))
+        vb_hat = v_batch + b_hat
+        vb_hat = np.array(np.interp(vb_hat, (vb_hat.min(), vb_hat.max()), (0, 1)), dtype=np.float32)
+        hist = implicit.fit([vb_hat, v_batch], [b_hat, zeros_batch, zeros_batch], verbose=0)
         loss.append(hist.history['loss'][0])
 
-    print('Epoch ' + str(epoch) + ':    ' + str(np.round(np.mean(loss), 10)))
+    print('Epoch ' + str(epoch+1) + ':    ' + str(np.round(np.mean(loss), 10)))
     
-    img = model.predict(noisy_dataset)
-    hist_orig = np.ndarray.flatten(orig_noise)
-    hist_pred = np.ndarray.flatten(img[0, :, :, 0])
-    bins = np.linspace(np.min([hist_orig, hist_pred]), np.max([hist_orig, hist_pred]), 50)
-    
-    img = noisy - img[0, :, :, 0]
-    img = np.interp(img, (img.min(), img.max()), (0, 1))
+    b_pred = model.predict(v_batch)
+    v_pred = v - b_pred[0, :, :, 0]
+    v_pred = np.interp(v_pred, (v_pred.min(), v_pred.max()), (0, 1))
 
-    print(str(psnr(img, orig)))
+    print('Orig PSNR: ' + str(psnr(v, u)))
+    print('New PSNR: ' + str(psnr(v_pred, u)))
 
-
-    filename = "C:/Users/attil/Documents/DRS/out/orig_%d.png" % (epoch + 1)
-    plt.figure(figsize=(15, 5))
-    plt.subplot(1, 4, 1)
-    plt.imshow(orig)
+    filename = "AWGN_epoch_%d.png" % (epoch + 1)
+    plt.figure(figsize=(15, 5.5))
+    plt.subplot(1, 3, 1)
+    plt.imshow(u)
     plt.axis('off')
-    plt.subplot(1, 4, 2)
-    plt.imshow(noisy)
-    plt.title('Orig PSNR: ' + str(psnr(noisy, orig)))
+    plt.subplot(1, 3, 2)
+    plt.imshow(v)
+    plt.title('Orig PSNR: ' + str(psnr(v, u)))
     plt.axis('off')
-    plt.subplot(1, 4, 3)
-    plt.imshow(img)
-    plt.title('New PSNR: ' + str(psnr(img, orig)))
+    plt.subplot(1, 3, 3)
+    plt.imshow(v_pred)
+    plt.title('New PSNR: ' + str(psnr(v_pred, u)))
     plt.axis('off')
-    plt.subplot(1, 4, 4)
-    plt.hist(hist_orig, bins, alpha=0.5, label='Original')
-    plt.hist(hist_pred, bins, alpha=0.5, label='Predicted')
-    plt.legend(loc='upper right')
     plt.tight_layout()
     plt.savefig(filename)
     plt.close('all')
