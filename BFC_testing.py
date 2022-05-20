@@ -15,8 +15,8 @@ from tensorflow.keras.models import load_model
 import sys
 random.seed(2019)
 
-model = load_model('IN.h5', compile=False)
-dataset = 'data.npz'
+model = load_model('weights/IN.h5', compile=False)
+dataset = 'data/data.npz'
 
 with np.load(dataset) as npzfile:
     v = npzfile['v']

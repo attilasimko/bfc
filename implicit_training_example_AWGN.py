@@ -100,7 +100,7 @@ if GPU >= 0:
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = str(GPU)
 
-u=cv2.resize(mpimg.imread('orig.png')[:, :, 0], dsize=(64, 64), interpolation=cv2.INTER_LANCZOS4)
+u=cv2.resize(mpimg.imread('data/orig.png')[:, :, 0], dsize=(64, 64), interpolation=cv2.INTER_LANCZOS4)
 u = np.array(np.interp(u, (u.min(), u.max()), (0, 1)), dtype=np.float32)
 noise_size = 0.02
 b = np.random.normal(0, noise_size, size=np.shape(u))
