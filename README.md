@@ -1,7 +1,10 @@
 # Implicit Training
 
 A repository for the paper 'MRI bias field correction with an implicitly trained CNN.' accepted for MIDL 2022.
+
 Link to paper: https://openreview.net/forum?id=LbHd47ij5s
+
+Link to the Zenodo site with the trained model and an example MR scan: https://zenodo.org/record/3749526#.YpXdjL9ByV4
 
 The required packages to run the repository are collected in 'requirements.txt'
 
