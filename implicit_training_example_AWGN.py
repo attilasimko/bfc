@@ -1,21 +1,13 @@
 import numpy as np
-from scipy import interpolate
-import scipy.ndimage as ndimage
 import matplotlib.pyplot as plt
-import sys
 import os
-import scipy.io
-import scipy.misc
 import tensorflow
 from tensorflow.keras.layers import Input, Lambda
 from tensorflow.keras.models import Model
-from scipy.fftpack import dct, idct
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import tensorflow.keras.backend as K
 import cv2
-import math
-from bm3d import bm3d
 import argparse
 
 # Code showcasing implicit training, but instead of bias field correction, it is gaussian noise removal.

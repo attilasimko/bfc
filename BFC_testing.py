@@ -1,19 +1,7 @@
-import sys
-import scipy
-from tensorflow.keras import optimizers, metrics
 import numpy as np
-import os
-import random
 import matplotlib.pyplot as plt
-from matplotlib import cm
-import cv2
-from scipy.stats import norm
-import matplotlib.mlab as mlab
-import tensorflow
 import matplotlib.pyplot as plt
 from tensorflow.keras.models import load_model
-import sys
-random.seed(2019)
 
 model = load_model('weights/IN.h5', compile=False)
 dataset = 'data/data.npz'
